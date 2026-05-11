@@ -404,8 +404,8 @@ public class SkillPublishService {
             ));
         }
 
-        // Trigger security scan for all non-autoPublish versions
-        if (!autoPublish && securityScanService.isEnabled()) {
+        // Trigger security scan for all versions (including auto-publish)
+        if (securityScanService.isEnabled()) {
             securityScanService.triggerScan(version.getId(), entries, publisherId);
         }
 
