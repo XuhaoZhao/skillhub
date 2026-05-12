@@ -103,7 +103,12 @@
       "tip": "💡 Tip: Visit the skill detail page for one-click install commands with environment variables",
       "tabs": {
         "agent": "I am Agent",
-        "human": "I am Human"
+        "human": "I am Human",
+        "cli": "CLI"
+      },
+      "cli": {
+        "description": "Install the SkillHub CLI locally to run skillhub install for skills.",
+        "command": "npm i -g @astron-team/skillhub"
       },
       "agent": {
         "description": "Send a prompt to your Agent to set up the SkillHub Registry",

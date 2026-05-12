@@ -103,7 +103,12 @@
       "tip": "💡 提示：访问技能详情页可获取带环境变量的一键复制安装命令",
       "tabs": {
         "agent": "我是 Agent",
-        "human": "我是 Human"
+        "human": "我是 Human",
+        "cli": "CLI"
+      },
+      "cli": {
+        "description": "安装 SkillHub CLI 到本地，后续可运行 skillhub install 安装技能",
+        "command": "npm i -g @astron-team/skillhub"
       },
       "agent": {
         "description": "发送提示词给你的 Agent，以设置SkillHub Registry",
