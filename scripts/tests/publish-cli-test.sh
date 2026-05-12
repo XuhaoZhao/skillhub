@@ -227,32 +227,44 @@ fi
   || fail "working tree not clean after cancel — revert incomplete"
 
 # ----------------------------------------------------------------------------
-# Test 7: remote tag conflict → abort with package.json reverted
+# Test 7: race condition — remote tag appears between baseline sync and push
 #
-# Set up: cli-v0.1.1 exists on origin but not locally. Local has no cli-v*
-# tags, so baseline sync skips and the patch bump from 0.1.0 lands on 0.1.1,
-# which collides with origin.
+# After fetch --tags + baseline sync, no cli-v* exists. The script bumps from
+# package.json (0.1.0 → 0.1.1). Right before the remote ls-remote check, we
+# simulate another developer pushing cli-v0.1.1 to origin. The script must
+# detect this via the remote tag check and abort with package.json reverted.
 # ----------------------------------------------------------------------------
-echo "[test] remote tag conflict aborts and reverts"
+echo "[test] remote tag race condition aborts and reverts"
 REPO7="$(new_tmp)"
 init_repo "$REPO7" "0.1.0"
-git -C "$REPO7" tag "cli-v0.1.1"
-git -C "$REPO7" push -q origin "cli-v0.1.1"
-git -C "$REPO7" tag -d "cli-v0.1.1" >/dev/null
-git -C "$REPO7" rev-parse -q --verify "refs/tags/cli-v0.1.1" >/dev/null 2>&1 \
-  && fail "setup error: local tag still present"
-git -C "$REPO7.origin.git" rev-parse "cli-v0.1.1" >/dev/null \
-  || fail "setup error: remote tag missing"
-# Disable automatic tag fetching so `git fetch --tags` doesn't pull cli-v0.1.1
-# back into the local repo and short-circuit the remote check.
-git -C "$REPO7" config remote.origin.tagOpt --no-tags
-git -C "$REPO7" config --unset-all remote.origin.fetch 2>/dev/null || true
-git -C "$REPO7" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 
-status="$(run_publish "$REPO7" "patch")"
-[[ "$status" -ne 0 ]] || fail "expected non-zero exit on remote tag conflict"
-grep -F "tag cli-v0.1.1 already exists" "$REPO7/stderr.log" >/dev/null \
-  || { cat "$REPO7/stderr.log" >&2; fail "expected tag conflict message"; }
+mkdir -p "$REPO7/bin-git"
+cat >"$REPO7/bin-git/git" <<'WRAPPER'
+#!/usr/bin/env bash
+# Inject cli-v0.1.1 into origin right before the script's remote tag check.
+if [[ "$*" == *"ls-remote --exit-code --tags origin refs/tags/cli-v0.1.1"* ]]; then
+  if [[ ! -f "$RACE_INJECTED_FLAG" ]]; then
+    touch "$RACE_INJECTED_FLAG"
+    SCRATCH=$(mktemp -d)
+    /usr/bin/git clone -q "$ORIGIN_REPO" "$SCRATCH" >/dev/null 2>&1
+    /usr/bin/git -C "$SCRATCH" tag cli-v0.1.1 >/dev/null 2>&1
+    /usr/bin/git -C "$SCRATCH" push -q origin cli-v0.1.1 >/dev/null 2>&1
+    rm -rf "$SCRATCH"
+  fi
+fi
+exec /usr/bin/git "$@"
+WRAPPER
+chmod +x "$REPO7/bin-git/git"
+
+status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+  ORIGIN_REPO="$REPO7.origin.git" \
+  RACE_INJECTED_FLAG="$REPO7/.race-injected" \
+  REPO_ROOT="$REPO7" PATH="$REPO7/bin-git:$REPO7/bin:$PATH" \
+  bash "$REPO7/scripts/publish-cli.sh" "patch" \
+  >"$REPO7/stdout.log" 2>"$REPO7/stderr.log" && echo 0 || echo $?)"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit on remote tag race"
+grep -F "tag cli-v0.1.1 already exists on origin" "$REPO7/stderr.log" >/dev/null \
+  || { cat "$REPO7/stderr.log" >&2; fail "expected remote tag conflict message"; }
 grep -F '"version": "0.1.0"' "$REPO7/cli/package.json" >/dev/null \
   || fail "package.json not reverted after remote conflict"
 [[ -z "$(git -C "$REPO7" status --porcelain)" ]] \
