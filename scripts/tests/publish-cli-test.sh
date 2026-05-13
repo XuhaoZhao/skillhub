@@ -258,7 +258,7 @@ init_repo "$REPO8" "0.6.0"
 mkdir -p "$REPO8/bin-git"
 cat >"$REPO8/bin-git/git" <<'WRAPPER'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "push" ]]; then
+if [[ "$*" == *"push"* ]]; then
   echo "fatal: could not read from remote repository." >&2
   exit 128
 fi
@@ -317,7 +317,7 @@ init_repo "$REPO10" "0.8.0"
 mkdir -p "$REPO10/bin-git"
 cat >"$REPO10/bin-git/git" <<'WRAPPER'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "push" ]]; then
+if [[ "$*" == *"push"* ]]; then
   echo "GIT_PUSH_ARGS: $*" >> "$REPO_ROOT/git-push-log.txt"
 fi
 exec /usr/bin/git "$@"
